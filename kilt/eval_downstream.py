@@ -99,7 +99,7 @@ def _rougel_score(prediction, ground_truth):
     return scores["rouge-l"]["f"]
 
 
-def _calculate_metrics(gold_records, guess_records):
+def _calculate_metrics(gold_records, guess_records, f1_save_file=None):
 
     assert len(gold_records) == len(
         guess_records
@@ -118,6 +118,8 @@ def _calculate_metrics(gold_records, guess_records):
     kilt_em = 0
     kilt_f1 = 0
     kilt_rougel = 0
+
+    all_local_f1 = []
 
     for guess_item, gold_item in zip(guess_records, gold_records):
 
@@ -159,6 +161,7 @@ def _calculate_metrics(gold_records, guess_records):
             _f1_score, guess_answer, gold_candidate_answers
         )
         normalized_f1 += local_f1
+        all_local_f1.append(local_f1)
 
         # 3. rougel
         local_rougel = _metric_max_over_ground_truths(
@@ -192,6 +195,11 @@ def _calculate_metrics(gold_records, guess_records):
         kilt_em /= total_count
         kilt_f1 /= total_count
         kilt_rougel /= total_count
+
+    if f1_save_file:
+        import json
+        with open(f1_save_file, "w") as f:
+            f.write( json.dumps( {"f1": all_local_f1 } ) )
 
     return {
         "kilt": {
@@ -241,7 +249,7 @@ def validate_input(gold_records, guess_records):
     return gold_records, guess_records
 
 
-def evaluate(gold, guess):
+def evaluate(gold, guess, f1_save_file=None):
     pp = pprint.PrettyPrinter(indent=4)
 
     gold_records = kilt_utils.load_data(gold)
@@ -251,7 +259,7 @@ def evaluate(gold, guess):
     gold_records, guess_records = validate_input(gold_records, guess_records)
 
     # 1. downstream + kilt
-    result = _calculate_metrics(gold_records, guess_records)
+    result = _calculate_metrics(gold_records, guess_records, f1_save_file=f1_save_file)
 
     # 2. retrieval performance
     retrieval_results = retrieval_metrics.compute(
@@ -272,4 +280,4 @@ if __name__ == "__main__":
     parser.add_argument("gold", help="Gold KILT file")
 
     args = parser.parse_args()
-    evaluate(args.gold, args.guess)
+    evaluate(args.gold, args.guess, f1_save_file=args.guess+".f1")
